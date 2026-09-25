@@ -5,6 +5,9 @@ from pathlib import Path
 
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import GutenbergLoader
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_google_vertexai import VertexAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -14,6 +17,19 @@ SAMPLE_QUESTION = "Who is Dr. Watson, and how does he know Sherlock Holmes?"
 CHUNK_SIZE = 5000
 CHUNK_OVERLAP = 1000
 CHROMA_DIRECTORY = Path(__file__).resolve().parent / ".chromadb"
+
+PROMPT = ChatPromptTemplate.from_template(
+    """You are an assistant for question-answering tasks.
+Use the retrieved book excerpts to answer the question.
+If the excerpts do not contain the answer, say you don't know based on the book.
+Keep the answer concise and do not invent details.
+
+Question: {question}
+
+Context: {context}
+
+Answer:"""
+)
 
 
 def load_gutenberg_book(book_url):
@@ -29,6 +45,11 @@ def split_documents(documents):
         chunk_overlap=CHUNK_OVERLAP,
     )
     return text_splitter.split_documents(documents)
+
+
+def format_documents(documents):
+    """Combine retrieved document text into the prompt context."""
+    return "\n\n".join(document.page_content for document in documents)
 
 
 def embed_and_store_chunks(chunks):
@@ -88,3 +109,10 @@ if __name__ == "__main__":
         source = chunk.metadata.get("source", book_url)
         print(f"\n--- Chunk {index} (source: {source}) ---")
         print(chunk.page_content[:1000])
+
+    llm = ChatGoogleGenerativeAI(model=os.getenv("GOOGLE_MODEL"))
+    answer_chain = PROMPT | llm | StrOutputParser()
+    answer = answer_chain.invoke(
+        {"question": question, "context": format_documents(retrieved_chunks)}
+    )
+    print(f"\nAnswer:\n{answer}")
