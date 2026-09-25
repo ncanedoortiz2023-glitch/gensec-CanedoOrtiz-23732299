@@ -1,0 +1,5 @@
+langchain-chroma
+langchain-community
+langchain-google-genai
+langchain-google-vertexai
+langchain-text-splitters

@@ -13,7 +13,6 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 SAMPLE_BOOK_URL = "https://www.gutenberg.org/cache/epub/1661/pg1661.txt"
-SAMPLE_QUESTION = "Who is Dr. Watson, and how does he know Sherlock Holmes?"
 CHUNK_SIZE = 5000
 CHUNK_OVERLAP = 1000
 CHROMA_DIRECTORY = Path(__file__).resolve().parent / ".chromadb"
@@ -50,6 +49,20 @@ def split_documents(documents):
 def format_documents(documents):
     """Combine retrieved document text into the prompt context."""
     return "\n\n".join(document.page_content for document in documents)
+
+
+def generate_answer(answer_chain, question, documents):
+    """Return a grounded answer, or report a concise Gemini/API error."""
+    try:
+        return answer_chain.invoke(
+            {"question": question, "context": format_documents(documents)}
+        )
+    except Exception as error:
+        print(
+            f"Gemini/API request failed ({type(error).__name__}). "
+            "Try another question or type 'quit'."
+        )
+        return None
 
 
 def embed_and_store_chunks(chunks):
@@ -97,22 +110,25 @@ if __name__ == "__main__":
         print(chunks[0].page_content[:1000])
 
     retriever = vector_store.as_retriever(search_kwargs={"k": 3})
-    question = input(
-        f"Question to test retrieval [Enter for: {SAMPLE_QUESTION}]: "
-    ).strip()
-    if not question:
-        question = SAMPLE_QUESTION
-
-    retrieved_chunks = retriever.invoke(question)
-    print(f"\nTop {len(retrieved_chunks)} chunks for: {question}")
-    for index, chunk in enumerate(retrieved_chunks, start=1):
-        source = chunk.metadata.get("source", book_url)
-        print(f"\n--- Chunk {index} (source: {source}) ---")
-        print(chunk.page_content[:1000])
-
     llm = ChatGoogleGenerativeAI(model=os.getenv("GOOGLE_MODEL"))
     answer_chain = PROMPT | llm | StrOutputParser()
-    answer = answer_chain.invoke(
-        {"question": question, "context": format_documents(retrieved_chunks)}
-    )
-    print(f"\nAnswer:\n{answer}")
+
+    print("\nAsk questions about the book. Type 'quit' to exit.")
+    while True:
+        question = input("\nQuestion: ").strip()
+        if question.lower() == "quit":
+            break
+        if not question:
+            continue
+
+        retrieved_chunks = retriever.invoke(question)
+        print(f"Top {len(retrieved_chunks)} chunks:")
+        for index, chunk in enumerate(retrieved_chunks, start=1):
+            source = chunk.metadata.get("source", book_url)
+            print(f"\n--- Chunk {index} (source: {source}) ---")
+            print(chunk.page_content[:1000])
+
+        answer = generate_answer(answer_chain, question, retrieved_chunks)
+        if answer is None:
+            continue
+        print(f"\nAnswer:\n{answer}")
