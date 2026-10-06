@@ -3,7 +3,10 @@ name = "fau-generative-security-homework3"
 version = "0.1.0"
 description = "FAU Generative Security Homework 3"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "langchain>=1.4.3",
+    "langchain-google-genai>=4.4.0",
+]
 
 [tool.uv]
 package = false
