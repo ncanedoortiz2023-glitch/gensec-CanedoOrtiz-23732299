@@ -3,6 +3,7 @@
 import os
 
 from langchain.agents import create_agent
+from langchain_experimental.tools import PythonREPLTool
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 
@@ -19,7 +20,7 @@ def create_homework_agent():
         model=model_name,
         google_api_key=api_key,
     )
-    return create_agent(model=model, tools=[])
+    return create_agent(model=model, tools=[PythonREPLTool()])
 
 
 def main():
