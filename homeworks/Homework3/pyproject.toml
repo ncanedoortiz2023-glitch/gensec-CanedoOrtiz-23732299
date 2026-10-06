@@ -1,0 +1,9 @@
+[project]
+name = "fau-generative-security-homework3"
+version = "0.1.0"
+description = "FAU Generative Security Homework 3"
+requires-python = ">=3.13"
+dependencies = []
+
+[tool.uv]
+package = false
