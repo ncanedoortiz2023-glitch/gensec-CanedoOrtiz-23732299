@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "git": {
+      "command": "uv",
+      "args": [
+        "run", "--project", "git-server", "--locked",
+        "python", "-m", "mcp_server_git", "--repository", "../.."
+      ]
+    }
+  }
+}
