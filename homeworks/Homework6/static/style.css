@@ -240,6 +240,12 @@ body {
     transform: scale(0.97);
 }
 
+.send-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
 .send-icon {
     display: inline-block;
 }
