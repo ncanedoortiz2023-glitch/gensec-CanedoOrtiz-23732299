@@ -2,11 +2,15 @@ import logging
 import os
 from flask import Flask, jsonify, render_template, request
 from google import genai
+from google.genai import types
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# Maximum number of previous conversation messages to send to prevent oversized requests
+MAX_HISTORY_MESSAGES = 20
 
 
 @app.route("/")
@@ -26,6 +30,14 @@ def chat():
 
     user_message = raw_message.strip()
 
+    # Validate and process optional conversation history
+    raw_history = data.get("history", [])
+    if not isinstance(raw_history, list):
+        return jsonify({"error": "Invalid history format. Array expected."}), 400
+
+    # Limit history to the most recent messages
+    trimmed_history = raw_history[-MAX_HISTORY_MESSAGES:]
+
     api_key = os.environ.get("GOOGLE_API_KEY")
     model_name = os.environ.get("GOOGLE_MODEL")
 
@@ -41,11 +53,40 @@ def chat():
     if model_name.startswith("google."):
         model_name = model_name[7:]
 
+    # Convert conversation history into the format expected by the Google Gen AI SDK
+    contents = []
+    for entry in trimmed_history:
+        if not isinstance(entry, dict):
+            continue
+
+        role = entry.get("role")
+        content_text = entry.get("content") or entry.get("text")
+        if not isinstance(content_text, str) or not content_text.strip():
+            continue
+
+        # Map assistant role to Gemini's expected model role
+        gemini_role = "model" if role in ("assistant", "model") else "user"
+        contents.append(
+            types.Content(
+                role=gemini_role,
+                parts=[types.Part.from_text(text=content_text.strip())],
+            )
+        )
+
+    # Append the new user message if not already present at the end
+    if not contents or contents[-1].role != "user" or contents[-1].parts[0].text != user_message:
+        contents.append(
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=user_message)],
+            )
+        )
+
     try:
         client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
             model=model_name,
-            contents=user_message,
+            contents=contents,
         )
 
         reply = response.text if response and response.text else "No response generated."

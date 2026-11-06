@@ -3,6 +3,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const userInput = document.getElementById("user-input");
     const chatMessages = document.getElementById("chat-messages");
     const sendBtn = document.getElementById("send-btn");
+    const clearBtn = document.getElementById("clear-btn");
+
+    // In-memory conversation history: [{ role: "user" | "assistant", content: string }]
+    // Stored in browser memory only; refreshing starts a fresh conversation
+    let conversationHistory = [];
+
+    // Limit previous messages sent to backend to prevent oversized requests
+    const MAX_HISTORY_MESSAGES = 10;
 
     /**
      * Appends a message bubble to the chat container.
@@ -25,7 +33,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     /**
-     * Sends the user's message to the Flask API endpoint and displays the response.
+     * Clears displayed messages and resets in-memory conversation history.
+     */
+    function handleClearChat() {
+        conversationHistory = [];
+        chatMessages.innerHTML = "";
+        userInput.value = "";
+        userInput.focus();
+    }
+
+    /**
+     * Sends the user's message and conversation history to the Flask API endpoint.
      */
     async function handleSendMessage() {
         const text = userInput.value.trim();
@@ -46,13 +64,19 @@ document.addEventListener("DOMContentLoaded", () => {
         // 2. Disable Send button while waiting for response
         sendBtn.disabled = true;
 
+        // Slice recent history to limit request size
+        const historyPayload = conversationHistory.slice(-MAX_HISTORY_MESSAGES);
+
         try {
             const response = await fetch("/api/chat", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ message: text }),
+                body: JSON.stringify({
+                    message: text,
+                    history: historyPayload,
+                }),
             });
 
             const data = await response.json().catch(() => null);
@@ -63,7 +87,12 @@ document.addEventListener("DOMContentLoaded", () => {
                     : "Unable to get a response from the AI assistant. Please try again.";
                 appendMessage("assistant", errorMessage);
             } else {
-                appendMessage("assistant", data.response || "No response received.");
+                const aiReply = data.response || "No response received.";
+                appendMessage("assistant", aiReply);
+
+                // Update in-memory conversation history on success
+                conversationHistory.push({ role: "user", content: text });
+                conversationHistory.push({ role: "assistant", content: aiReply });
             }
         } catch (error) {
             // Graceful network or unexpected error display without leaking internal details
@@ -88,4 +117,9 @@ document.addEventListener("DOMContentLoaded", () => {
             handleSendMessage();
         }
     });
+
+    // Handle Clear Chat button
+    if (clearBtn) {
+        clearBtn.addEventListener("click", handleClearChat);
+    }
 });
